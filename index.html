@@ -33,10 +33,7 @@
       <!-- Location -->
       <div>
         <label class="block text-gray-700 font-medium mb-1">Location:</label>
-        <div class="flex gap-2">
-          <select id="location" class="flex-1 border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300"></select>
-          <button id="addLocation" type="button" class="text-lg bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-3">+</button>
-        </div>
+        <input type="text" id="location" class="w-full border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300" placeholder="Enter location" required />
       </div>
 
       <button type="submit" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg font-medium">
@@ -63,50 +60,23 @@
     </div>
   </div>
 
-  <!-- Popup for adding Location -->
-  <div id="popupModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
-    <div class="bg-white rounded-xl p-6 w-80 space-y-4">
-      <h2 id="popupTitle" class="text-lg font-semibold text-gray-700"></h2>
-      <input id="popupInput" type="text" class="w-full border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300" placeholder="Enter name..." />
-      <div class="flex justify-end gap-2">
-        <button id="cancelPopup" class="px-3 py-1 bg-gray-300 rounded-lg">Cancel</button>
-        <button id="savePopup" class="px-3 py-1 bg-blue-500 text-white rounded-lg">Save</button>
-      </div>
-    </div>
-  </div>
-
   <script>
-    const locationSelect = document.getElementById('location');
     const inventoryForm = document.getElementById('inventoryForm');
     const inventoryList = document.getElementById('inventoryList');
     const exportCsvBtn = document.getElementById('exportCsv');
-    const popupModal = document.getElementById('popupModal');
-    const popupTitle = document.getElementById('popupTitle');
-    const popupInput = document.getElementById('popupInput');
-    const cancelPopup = document.getElementById('cancelPopup');
-    const savePopup = document.getElementById('savePopup');
     const summaryContainer = document.getElementById('summaryContainer');
 
-    let locations = JSON.parse(localStorage.getItem('locations')) || ["Warehouse A", "Warehouse B"];
     let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
-    let currentAddType = "";
 
     function saveLocal() {
-      localStorage.setItem('locations', JSON.stringify(locations));
       localStorage.setItem('inventory', JSON.stringify(inventory));
     }
-
-    function populateLocation() {
-      locationSelect.innerHTML = locations.map(l => `<option>${l}</option>`).join('');
-    }
-
-    populateLocation();
 
     inventoryForm.onsubmit = e => {
       e.preventDefault();
       const itemCode = document.getElementById('itemCode').value.trim();
       const quantity = parseInt(document.getElementById('quantity').value);
-      const location = locationSelect.value;
+      const location = document.getElementById('location').value.trim();
 
       if (!itemCode || !quantity || !location) return alert("Complete all fields!");
 
@@ -115,6 +85,7 @@
       renderInventory();
       renderSummary();
       inventoryForm.reset();
+      document.getElementById('itemCode').focus();
     };
 
     function renderInventory() {
@@ -162,28 +133,9 @@
       const inv = inventory[index];
       document.getElementById('itemCode').value = inv.itemCode;
       document.getElementById('quantity').value = inv.quantity;
-      locationSelect.value = inv.location;
+      document.getElementById('location').value = inv.location;
       deleteInventory(index);
     }
-
-    // Popup logic
-    document.getElementById('addLocation').onclick = () => showPopup('location');
-    function showPopup(type) {
-      currentAddType = type;
-      popupTitle.textContent = "Add New Location";
-      popupInput.value = '';
-      popupModal.classList.remove('hidden');
-      popupModal.classList.add('flex');
-    }
-    cancelPopup.onclick = () => popupModal.classList.add('hidden');
-    savePopup.onclick = () => {
-      const value = popupInput.value.trim();
-      if (!value) return;
-      locations.push(value);
-      saveLocal();
-      populateLocation();
-      popupModal.classList.add('hidden');
-    };
 
     // Tabs
     const tabEntries = document.getElementById('tabEntries');
