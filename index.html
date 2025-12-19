@@ -1,226 +1,224 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Skid Tag Scanner</title>
-
-  <!-- Fonts & Tailwind -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory Scanner</title>
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] },
-          boxShadow: { card: "0 10px 25px -10px rgba(0,0,0,0.25)" }
-        }
-      }
-    }
-  </script>
-
-  <!-- Barcode -->
-  <script defer src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
 
-<body class="bg-slate-50 text-slate-900">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 space-y-4">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+      <h1 class="text-xl font-bold text-gray-800">📦 Inventory Scanner</h1>
+      <button id="exportCsv" class="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg">Export CSV</button>
+    </div>
 
-<header class="border-b bg-white">
-  <div class="max-w-4xl mx-auto px-4 py-3">
-    <h1 class="text-xl font-semibold">Skid Tag Scanner</h1>
-  </div>
-</header>
-
-<main class="max-w-4xl mx-auto px-4 py-8">
-  <div class="bg-white border rounded-2xl shadow-card p-6">
-
-    <!-- FORM -->
-    <form id="scanForm" class="grid gap-4" onsubmit="return false;">
-
-      <!-- Barcode -->
-      <div class="flex gap-2">
-        <input
-          id="barcodeInput"
-          type="text"
-          placeholder="Scan or enter barcode"
-          class="border rounded-lg p-2 flex-1"
-          required
-        />
-        <button
-          id="scanBtn"
-          type="button"
-          class="bg-indigo-600 text-white px-4 rounded-lg"
-        >
-          Scan
-        </button>
+    <!-- Inventory Form -->
+    <form id="inventoryForm" class="space-y-3">
+      <!-- Barcode / Item Code -->
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Scan / Enter Item Code:</label>
+        <input type="text" id="itemCode" class="w-full border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300" placeholder="Scan or type item code" required />
       </div>
 
       <!-- Quantity -->
-      <input
-        id="quantity"
-        type="number"
-        min="1"
-        placeholder="Quantity"
-        class="border rounded-lg p-2"
-        required
-      />
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Quantity:</label>
+        <input type="number" id="quantity" min="1" step="1" class="w-full border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300" required />
+      </div>
 
       <!-- Location -->
-      <input
-        id="location"
-        type="text"
-        placeholder="Location"
-        class="border rounded-lg p-2"
-        required
-      />
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Location:</label>
+        <div class="flex gap-2">
+          <select id="location" class="flex-1 border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300"></select>
+          <button id="addLocation" type="button" class="text-lg bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-3">+</button>
+        </div>
+      </div>
 
-      <button
-        id="previewBtn"
-        class="bg-slate-900 text-white px-4 py-2 rounded-lg"
-      >
-        Preview
+      <button type="submit" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg font-medium">
+        Add Inventory
       </button>
     </form>
 
-    <!-- OUTPUT -->
-    <section id="output" class="hidden mt-8">
-      <div class="grid md:grid-cols-2 gap-6">
-        <div class="border rounded-lg p-4 text-sm">
-          <p><strong>Barcode:</strong> <span id="outBarcode"></span></p>
-          <p><strong>Quantity:</strong> <span id="outQuantity"></span></p>
-          <p><strong>Location:</strong> <span id="outLocation"></span></p>
-        </div>
-        <div class="border rounded-lg p-4 flex justify-center">
-          <svg id="barcode"></svg>
-        </div>
+    <!-- Tabs -->
+    <div class="flex mt-4">
+      <button id="tabEntries" class="flex-1 bg-blue-500 text-white py-2 rounded-l-lg">Entries</button>
+      <button id="tabSummary" class="flex-1 bg-gray-200 py-2 rounded-r-lg">Summary</button>
+    </div>
+
+    <!-- Entries Tab -->
+    <div id="entriesTab" class="space-y-3 mt-3">
+      <h2 class="text-lg font-semibold text-gray-700">Scanned Items</h2>
+      <ul id="inventoryList" class="space-y-2"></ul>
+    </div>
+
+    <!-- Summary Tab -->
+    <div id="summaryTab" class="hidden space-y-3 mt-3">
+      <h2 class="text-lg font-semibold text-gray-700">Summary by Location</h2>
+      <div id="summaryContainer" class="space-y-4"></div>
+    </div>
+  </div>
+
+  <!-- Popup for adding Location -->
+  <div id="popupModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+    <div class="bg-white rounded-xl p-6 w-80 space-y-4">
+      <h2 id="popupTitle" class="text-lg font-semibold text-gray-700"></h2>
+      <input id="popupInput" type="text" class="w-full border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300" placeholder="Enter name..." />
+      <div class="flex justify-end gap-2">
+        <button id="cancelPopup" class="px-3 py-1 bg-gray-300 rounded-lg">Cancel</button>
+        <button id="savePopup" class="px-3 py-1 bg-blue-500 text-white rounded-lg">Save</button>
       </div>
-    </section>
-
+    </div>
   </div>
-</main>
 
-<!-- CAMERA MODAL -->
-<div
-  id="cameraModal"
-  class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50"
->
-  <div class="bg-white rounded-xl p-4 w-full max-w-md">
-    <video id="video" class="w-full rounded-lg" autoplay playsinline></video>
-    <button
-      id="closeCamera"
-      class="mt-3 w-full bg-slate-900 text-white py-2 rounded-lg"
-    >
-      Close
-    </button>
-  </div>
-</div>
+  <script>
+    const locationSelect = document.getElementById('location');
+    const inventoryForm = document.getElementById('inventoryForm');
+    const inventoryList = document.getElementById('inventoryList');
+    const exportCsvBtn = document.getElementById('exportCsv');
+    const popupModal = document.getElementById('popupModal');
+    const popupTitle = document.getElementById('popupTitle');
+    const popupInput = document.getElementById('popupInput');
+    const cancelPopup = document.getElementById('cancelPopup');
+    const savePopup = document.getElementById('savePopup');
+    const summaryContainer = document.getElementById('summaryContainer');
 
-<footer class="text-center text-xs text-slate-500 py-6">
-  © <span id="year"></span> Inventory Tool Made by Parth
-</footer>
+    let locations = JSON.parse(localStorage.getItem('locations')) || ["Warehouse A", "Warehouse B"];
+    let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
+    let currentAddType = "";
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
+    function saveLocal() {
+      localStorage.setItem('locations', JSON.stringify(locations));
+      localStorage.setItem('inventory', JSON.stringify(inventory));
+    }
 
-  document.getElementById("year").textContent = new Date().getFullYear();
+    function populateLocation() {
+      locationSelect.innerHTML = locations.map(l => `<option>${l}</option>`).join('');
+    }
 
-  const els = {
-    barcodeInput: document.getElementById("barcodeInput"),
-    quantity: document.getElementById("quantity"),
-    location: document.getElementById("location"),
-    previewBtn: document.getElementById("previewBtn"),
-    scanBtn: document.getElementById("scanBtn"),
-    output: document.getElementById("output"),
-    outBarcode: document.getElementById("outBarcode"),
-    outQuantity: document.getElementById("outQuantity"),
-    outLocation: document.getElementById("outLocation"),
-    barcode: document.getElementById("barcode"),
-    cameraModal: document.getElementById("cameraModal"),
-    video: document.getElementById("video"),
-    closeCamera: document.getElementById("closeCamera"),
-  };
+    populateLocation();
 
-  let stream = null;
-  let detector = null;
+    inventoryForm.onsubmit = e => {
+      e.preventDefault();
+      const itemCode = document.getElementById('itemCode').value.trim();
+      const quantity = parseInt(document.getElementById('quantity').value);
+      const location = locationSelect.value;
 
-  // Safe barcode detector
-  if ("BarcodeDetector" in window) {
-    detector = new BarcodeDetector({
-      formats: ["code_128", "ean_13", "ean_8", "upc_a", "upc_e"]
-    });
-  } else {
-    els.scanBtn.disabled = true;
-    els.scanBtn.textContent = "Camera Not Supported";
-    els.scanBtn.classList.add("opacity-50");
-  }
+      if (!itemCode || !quantity || !location) return alert("Complete all fields!");
 
-  async function startScanner() {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
+      inventory.push({ itemCode, quantity, location });
+      saveLocal();
+      renderInventory();
+      renderSummary();
+      inventoryForm.reset();
+    };
+
+    function renderInventory() {
+      inventoryList.innerHTML = inventory.map((inv, i) => `
+        <li class="p-3 bg-gray-50 rounded-lg flex justify-between items-center border">
+          <div>
+            <p class="font-medium">${inv.itemCode} - Qty: ${inv.quantity}</p>
+            <p class="text-sm text-gray-600">Location: ${inv.location}</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="editInventory(${i})" class="text-blue-500 text-sm">✏️</button>
+            <button onclick="deleteInventory(${i})" class="text-red-500 text-sm">❌</button>
+          </div>
+        </li>
+      `).join('');
+    }
+
+    function renderSummary() {
+      const grouped = {};
+      inventory.forEach(inv => {
+        if (!grouped[inv.location]) grouped[inv.location] = [];
+        grouped[inv.location].push(inv);
       });
-      els.video.srcObject = stream;
-      els.cameraModal.classList.remove("hidden");
-      scanLoop();
-    } catch (err) {
-      alert("Camera access failed");
-      console.error(err);
+
+      summaryContainer.innerHTML = Object.entries(grouped).map(([loc, items]) => {
+        return `
+          <div class="bg-gray-50 p-3 rounded-lg border">
+            <h3 class="font-semibold text-blue-600 mb-2">${loc}</h3>
+            <ul>
+              ${items.map(item => `<li class="flex justify-between text-gray-700"><span>${item.itemCode}</span><span>${item.quantity}</span></li>`).join('')}
+            </ul>
+          </div>
+        `;
+      }).join('');
     }
-  }
 
-  async function scanLoop() {
-    if (!stream) return;
-
-    try {
-      const barcodes = await detector.detect(els.video);
-      if (barcodes.length) {
-        els.barcodeInput.value = barcodes[0].rawValue;
-        stopScanner();
-        return;
-      }
-    } catch (err) {
-      console.warn(err);
+    function deleteInventory(index) {
+      inventory.splice(index, 1);
+      saveLocal();
+      renderInventory();
+      renderSummary();
     }
-    requestAnimationFrame(scanLoop);
-  }
 
-  function stopScanner() {
-    els.cameraModal.classList.add("hidden");
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop());
-      stream = null;
+    function editInventory(index) {
+      const inv = inventory[index];
+      document.getElementById('itemCode').value = inv.itemCode;
+      document.getElementById('quantity').value = inv.quantity;
+      locationSelect.value = inv.location;
+      deleteInventory(index);
     }
-  }
 
-  function generatePreview() {
-    const code = els.barcodeInput.value.trim();
-    const qty = els.quantity.value;
-    const loc = els.location.value.trim();
+    // Popup logic
+    document.getElementById('addLocation').onclick = () => showPopup('location');
+    function showPopup(type) {
+      currentAddType = type;
+      popupTitle.textContent = "Add New Location";
+      popupInput.value = '';
+      popupModal.classList.remove('hidden');
+      popupModal.classList.add('flex');
+    }
+    cancelPopup.onclick = () => popupModal.classList.add('hidden');
+    savePopup.onclick = () => {
+      const value = popupInput.value.trim();
+      if (!value) return;
+      locations.push(value);
+      saveLocal();
+      populateLocation();
+      popupModal.classList.add('hidden');
+    };
 
-    if (!code || !qty || !loc) return;
+    // Tabs
+    const tabEntries = document.getElementById('tabEntries');
+    const tabSummary = document.getElementById('tabSummary');
+    tabEntries.onclick = () => {
+      tabEntries.classList.replace('bg-gray-200', 'bg-blue-500');
+      tabEntries.classList.add('text-white');
+      tabSummary.classList.replace('bg-blue-500', 'bg-gray-200');
+      tabSummary.classList.remove('text-white');
+      document.getElementById('entriesTab').classList.remove('hidden');
+      document.getElementById('summaryTab').classList.add('hidden');
+    };
+    tabSummary.onclick = () => {
+      tabSummary.classList.replace('bg-gray-200', 'bg-blue-500');
+      tabSummary.classList.add('text-white');
+      tabEntries.classList.replace('bg-blue-500', 'bg-gray-200');
+      tabEntries.classList.remove('text-white');
+      document.getElementById('summaryTab').classList.remove('hidden');
+      document.getElementById('entriesTab').classList.add('hidden');
+      renderSummary();
+    };
 
-    els.outBarcode.textContent = code;
-    els.outQuantity.textContent = qty;
-    els.outLocation.textContent = loc;
+    // CSV Export
+    exportCsvBtn.onclick = () => {
+        if (inventory.length === 0) return alert("No inventory to export!");
 
-    JsBarcode(els.barcode, code, {
-      format: "CODE128",
-      displayValue: true,
-      height: 80
-    });
+        const data = [["Item Code", "Quantity", "Location"], ...inventory.map(i => [i.itemCode, i.quantity, i.location])];
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+        XLSX.writeFile(wb, "inventory.xlsx");
+    };
 
-    els.output.classList.remove("hidden");
-  }
-
-  els.scanBtn.addEventListener("click", startScanner);
-  els.closeCamera.addEventListener("click", stopScanner);
-  els.previewBtn.addEventListener("click", generatePreview);
-
-});
-</script>
-
+    renderInventory();
+    renderSummary();
+  </script>
 </body>
 </html>
