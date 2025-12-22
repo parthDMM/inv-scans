@@ -4,173 +4,267 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Inventory Scanner</title>
+
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- XLSX -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
+
+<body class="bg-gray-100 min-h-screen flex justify-center p-4">
 
   <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 space-y-4">
+
     <!-- Header -->
     <div class="flex justify-between items-center">
       <h1 class="text-xl font-bold text-gray-800">📦 Inventory Scanner</h1>
-      <button id="exportCsv" class="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg">Export CSV</button>
+      <button id="exportCsv"
+        class="bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded-lg">
+        Export CSV
+      </button>
     </div>
 
-    <!-- Inventory Form -->
+    <!-- Form -->
     <form id="inventoryForm" class="space-y-3">
-      <!-- Barcode / Item Code -->
+
+      <!-- Item Code -->
       <div>
-        <label class="block text-gray-700 font-medium mb-1">Scan / Enter Item Code:</label>
-        <input type="text" id="itemCode" class="w-full border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300" placeholder="Scan or type item code" required />
+        <label class="block font-medium text-gray-700 mb-1">Scan / Item Code</label>
+        <input
+          id="itemCode"
+          type="text"
+          autocomplete="off"
+          autofocus
+          placeholder="Scan barcode"
+          class="w-full p-2 border rounded-lg focus:ring focus:ring-blue-300"
+          required
+        />
       </div>
 
       <!-- Quantity -->
       <div>
-        <label class="block text-gray-700 font-medium mb-1">Quantity:</label>
-        <input type="number" id="quantity" min="1" step="1" class="w-full border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300" required />
+        <label class="block font-medium text-gray-700 mb-1">Quantity</label>
+        <input
+          id="quantity"
+          type="number"
+          min="1"
+          step="1"
+          class="w-full p-2 border rounded-lg focus:ring focus:ring-blue-300"
+          required
+        />
       </div>
 
       <!-- Location -->
       <div>
-        <label class="block text-gray-700 font-medium mb-1">Location:</label>
-        <input type="text" id="location" class="w-full border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300" placeholder="Enter location" required />
+        <label class="block font-medium text-gray-700 mb-1">Location</label>
+        <input
+          id="location"
+          type="text"
+          placeholder="Enter location"
+          class="w-full p-2 border rounded-lg focus:ring focus:ring-blue-300"
+          required
+        />
       </div>
 
-      <button type="submit" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg font-medium">
+      <button
+        type="submit"
+        class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg font-medium">
         Add Inventory
       </button>
     </form>
 
     <!-- Tabs -->
     <div class="flex mt-4">
-      <button id="tabEntries" class="flex-1 bg-blue-500 text-white py-2 rounded-l-lg">Entries</button>
-      <button id="tabSummary" class="flex-1 bg-gray-200 py-2 rounded-r-lg">Summary</button>
+      <button id="tabEntries"
+        class="flex-1 bg-blue-500 text-white py-2 rounded-l-lg">
+        Entries
+      </button>
+      <button id="tabSummary"
+        class="flex-1 bg-gray-200 py-2 rounded-r-lg">
+        Summary
+      </button>
     </div>
 
-    <!-- Entries Tab -->
+    <!-- Entries -->
     <div id="entriesTab" class="space-y-3 mt-3">
-      <h2 class="text-lg font-semibold text-gray-700">Scanned Items</h2>
+      <h2 class="font-semibold text-gray-700">Scanned Items</h2>
       <ul id="inventoryList" class="space-y-2"></ul>
     </div>
 
-    <!-- Summary Tab -->
+    <!-- Summary -->
     <div id="summaryTab" class="hidden space-y-3 mt-3">
-      <h2 class="text-lg font-semibold text-gray-700">Summary by Location</h2>
-      <div id="summaryContainer" class="space-y-4"></div>
+      <h2 class="font-semibold text-gray-700">Summary by Location</h2>
+      <div id="summaryContainer" class="space-y-3"></div>
     </div>
+
   </div>
 
-  <script>
-    const inventoryForm = document.getElementById('inventoryForm');
-    const inventoryList = document.getElementById('inventoryList');
-    const exportCsvBtn = document.getElementById('exportCsv');
-    const summaryContainer = document.getElementById('summaryContainer');
+<script>
+/* ======================
+   STATE & STORAGE
+====================== */
+let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
 
-    let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
+function saveLocal() {
+  localStorage.setItem('inventory', JSON.stringify(inventory));
+}
 
-    function saveLocal() {
-      localStorage.setItem('inventory', JSON.stringify(inventory));
-    }
+/* ======================
+   DOM ELEMENTS
+====================== */
+const form = document.getElementById('inventoryForm');
+const itemCodeInput = document.getElementById('itemCode');
+const quantityInput = document.getElementById('quantity');
+const locationInput = document.getElementById('location');
+const inventoryList = document.getElementById('inventoryList');
+const summaryContainer = document.getElementById('summaryContainer');
 
-    inventoryForm.onsubmit = e => {
-      e.preventDefault();
-      const itemCode = document.getElementById('itemCode').value.trim();
-      const quantity = parseInt(document.getElementById('quantity').value);
-      const location = document.getElementById('location').value.trim();
+/* ======================
+   SCANNER FIX (IMPORTANT)
+====================== */
+// Prevent barcode scanner ENTER from submitting form
+itemCodeInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    quantityInput.focus();
+  }
+});
 
-      if (!itemCode || !quantity || !location) return alert("Complete all fields!");
+/* ======================
+   FORM SUBMIT
+====================== */
+form.addEventListener('submit', e => {
+  e.preventDefault();
 
-      inventory.push({ itemCode, quantity, location });
-      saveLocal();
-      renderInventory();
-      renderSummary();
-      inventoryForm.reset();
-      document.getElementById('itemCode').focus();
-    };
+  const itemCode = itemCodeInput.value
+    .replace(/[\r\n]+/g, '') // remove scanner CR/LF
+    .trim();
 
-    function renderInventory() {
-      inventoryList.innerHTML = inventory.map((inv, i) => `
-        <li class="p-3 bg-gray-50 rounded-lg flex justify-between items-center border">
-          <div>
-            <p class="font-medium">${inv.itemCode} - Qty: ${inv.quantity}</p>
-            <p class="text-sm text-gray-600">Location: ${inv.location}</p>
-          </div>
-          <div class="flex gap-2">
-            <button onclick="editInventory(${i})" class="text-blue-500 text-sm">✏️</button>
-            <button onclick="deleteInventory(${i})" class="text-red-500 text-sm">❌</button>
-          </div>
-        </li>
-      `).join('');
-    }
+  const quantity = parseInt(quantityInput.value);
+  const location = locationInput.value.trim();
 
-    function renderSummary() {
-      const grouped = {};
-      inventory.forEach(inv => {
-        if (!grouped[inv.location]) grouped[inv.location] = [];
-        grouped[inv.location].push(inv);
-      });
+  if (!itemCode || !quantity || !location) {
+    alert('Complete all fields');
+    return;
+  }
 
-      summaryContainer.innerHTML = Object.entries(grouped).map(([loc, items]) => {
-        return `
-          <div class="bg-gray-50 p-3 rounded-lg border">
-            <h3 class="font-semibold text-blue-600 mb-2">${loc}</h3>
-            <ul>
-              ${items.map(item => `<li class="flex justify-between text-gray-700"><span>${item.itemCode}</span><span>${item.quantity}</span></li>`).join('')}
-            </ul>
-          </div>
-        `;
-      }).join('');
-    }
+  inventory.push({ itemCode, quantity, location });
+  saveLocal();
 
-    function deleteInventory(index) {
-      inventory.splice(index, 1);
-      saveLocal();
-      renderInventory();
-      renderSummary();
-    }
+  renderInventory();
+  renderSummary();
 
-    function editInventory(index) {
-      const inv = inventory[index];
-      document.getElementById('itemCode').value = inv.itemCode;
-      document.getElementById('quantity').value = inv.quantity;
-      document.getElementById('location').value = inv.location;
-      deleteInventory(index);
-    }
+  form.reset();
+  itemCodeInput.focus();
+});
 
-    // Tabs
-    const tabEntries = document.getElementById('tabEntries');
-    const tabSummary = document.getElementById('tabSummary');
-    tabEntries.onclick = () => {
-      tabEntries.classList.replace('bg-gray-200', 'bg-blue-500');
-      tabEntries.classList.add('text-white');
-      tabSummary.classList.replace('bg-blue-500', 'bg-gray-200');
-      tabSummary.classList.remove('text-white');
-      document.getElementById('entriesTab').classList.remove('hidden');
-      document.getElementById('summaryTab').classList.add('hidden');
-    };
-    tabSummary.onclick = () => {
-      tabSummary.classList.replace('bg-gray-200', 'bg-blue-500');
-      tabSummary.classList.add('text-white');
-      tabEntries.classList.replace('bg-blue-500', 'bg-gray-200');
-      tabEntries.classList.remove('text-white');
-      document.getElementById('summaryTab').classList.remove('hidden');
-      document.getElementById('entriesTab').classList.add('hidden');
-      renderSummary();
-    };
+/* ======================
+   RENDER INVENTORY
+====================== */
+function renderInventory() {
+  inventoryList.innerHTML = inventory.map((item, i) => `
+    <li class="bg-gray-50 border rounded-lg p-3 flex justify-between">
+      <div>
+        <p class="font-medium">${item.itemCode}</p>
+        <p class="text-sm text-gray-600">
+          Qty: ${item.quantity} | ${item.location}
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="editItem(${i})">✏️</button>
+        <button onclick="deleteItem(${i})">❌</button>
+      </div>
+    </li>
+  `).join('');
+}
 
-    // CSV Export
-    exportCsvBtn.onclick = () => {
-        if (inventory.length === 0) return alert("No inventory to export!");
+/* ======================
+   SUMMARY
+====================== */
+function renderSummary() {
+  const grouped = {};
 
-        const data = [["Item Code", "Quantity", "Location"], ...inventory.map(i => [i.itemCode, i.quantity, i.location])];
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-        XLSX.writeFile(wb, "inventory.xlsx");
-    };
+  inventory.forEach(item => {
+    grouped[item.location] ??= [];
+    grouped[item.location].push(item);
+  });
 
-    renderInventory();
-    renderSummary();
-  </script>
+  summaryContainer.innerHTML = Object.entries(grouped).map(([loc, items]) => `
+    <div class="border rounded-lg p-3 bg-gray-50">
+      <h3 class="font-semibold text-blue-600 mb-2">${loc}</h3>
+      <ul>
+        ${items.map(i =>
+          `<li class="flex justify-between text-sm">
+            <span>${i.itemCode}</span>
+            <span>${i.quantity}</span>
+          </li>`
+        ).join('')}
+      </ul>
+    </div>
+  `).join('');
+}
+
+/* ======================
+   EDIT / DELETE
+====================== */
+function deleteItem(index) {
+  inventory.splice(index, 1);
+  saveLocal();
+  renderInventory();
+  renderSummary();
+}
+
+function editItem(index) {
+  const item = inventory[index];
+  itemCodeInput.value = item.itemCode;
+  quantityInput.value = item.quantity;
+  locationInput.value = item.location;
+  deleteItem(index);
+  itemCodeInput.focus();
+}
+
+/* ======================
+   TABS
+====================== */
+document.getElementById('tabEntries').onclick = () => {
+  entriesTab.classList.remove('hidden');
+  summaryTab.classList.add('hidden');
+};
+
+document.getElementById('tabSummary').onclick = () => {
+  summaryTab.classList.remove('hidden');
+  entriesTab.classList.add('hidden');
+  renderSummary();
+};
+
+/* ======================
+   EXPORT
+====================== */
+document.getElementById('exportCsv').onclick = () => {
+  if (!inventory.length) {
+    alert('No inventory to export');
+    return;
+  }
+
+  const data = [
+    ['Item Code', 'Quantity', 'Location'],
+    ...inventory.map(i => [i.itemCode, i.quantity, i.location])
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
+
+  XLSX.writeFile(wb, 'inventory.xlsx');
+};
+
+/* ======================
+   INIT
+====================== */
+renderInventory();
+renderSummary();
+</script>
+
 </body>
 </html>
