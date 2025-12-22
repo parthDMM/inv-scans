@@ -29,7 +29,7 @@
     video {
       width: 100%;
       max-width: 420px;
-      height: 180px;
+      height: 280px;
       object-fit: cover;
       border-radius: 10px;
       border: 2px solid #ccc;
@@ -172,14 +172,31 @@
     if (scanning) return;
     scanning = true;
     statusEl.textContent = "Status: Scanning...";
-
-    codeReader.decodeFromVideoDevice(null, video, (result, err) => {
+  
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+      ZXing.BarcodeFormat.CODE_128
+    ]);
+  
+    const constraints = {
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    };
+  
+    const reader = new ZXing.BrowserMultiFormatReader(hints);
+  
+    reader.decodeFromConstraints(constraints, video, (result, err) => {
       if (result) {
         stopScan();
         currentBarcode = result.text;
         showModal(currentBarcode);
       }
     });
+  
+    codeReader = reader;
   }
 
   function stopScan() {
