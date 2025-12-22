@@ -1,269 +1,176 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Inventory Counts</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-
-  <!-- ZXing for barcode scanning -->
-  <script src="https://unpkg.com/@zxing/library@latest"></script>
-
-  <!-- SheetJS for Excel export -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory Scanner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
-  <style>
-    html, body {
-      width: 100%;
-      height: 100%;
-      overflow-x: hidden;
-      touch-action: manipulation;
-      margin: 0;
-      padding: 20px;
-      font-family: Arial, sans-serif;
-      background: #f4f6f8;
-    }
-
-    h1 { margin-bottom: 10px; }
-
-    /* Compact camera window */
-    video {
-      width: 100%;
-      max-width: 420px;
-      height: 280px;
-      object-fit: cover;
-      border-radius: 10px;
-      border: 2px solid #ccc;
-    }
-
-    button {
-      padding: 10px 16px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-      margin-right: 6px;
-    }
-
-    .start { background: #2563eb; color: white; }
-    .stop { background: #ef4444; color: white; }
-    .export { background: #16a34a; color: white; }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
-      background: white;
-    }
-
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      font-size: 13px;
-    }
-
-    th { background: #f1f5f9; }
-
-    .status { margin-top: 10px; font-size: 14px; }
-
-    /* Modal */
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.5);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 999;
-    }
-
-    .modal-box {
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-      width: 90%;
-      max-width: 340px;
-    }
-
-    .modal-box h3 { margin-top: 0; }
-    .modal-box label {
-      font-size: 13px;
-      font-weight: bold;
-    }
-
-    .modal-box input,
-    .modal-box select {
-      width: 100%;
-      padding: 8px;
-      margin: 6px 0 12px;
-      font-size: 16px; /* Critical for iOS numeric keypad */
-    }
-
-    .quantity-field {
-      width: 80%; /* Reduced width */
-    }
-
-  </style>
 </head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
 
-<body>
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-5 space-y-4">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+      <h1 class="text-xl font-bold text-gray-800">📦 Inventory Scanner</h1>
+      <button id="exportCsv" class="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg">Export CSV</button>
+    </div>
 
-<h1>Inventory Counts</h1>
-<p>Scan Inventory Barcode, Enter Quantity in inches/sheets, save to Excel.</p>
+    <!-- Inventory Form -->
+    <form id="inventoryForm" class="space-y-3">
+      <!-- Barcode / Item Code -->
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Scan / Enter Item Code:</label>
+        <input type="text" id="itemCode" class="w-full border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300" placeholder="Scan or type item code" required />
+      </div>
 
-<button class="start" onclick="startScan()">Start Scan</button>
-<button class="stop" onclick="stopScan()">Stop Scan</button>
-<button class="export" onclick="exportExcel()">Export Excel</button>
-  
-<video id="video" autoplay muted></video>
+      <!-- Quantity -->
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Quantity:</label>
+        <input type="number" id="quantity" min="1" step="1" class="w-full border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300" required />
+      </div>
 
-<br><br>
+      <!-- Location -->
+      <div>
+        <label class="block text-gray-700 font-medium mb-1">Location:</label>
+        <input type="text" id="location" class="w-full border-gray-300 rounded-lg p-2 focus:ring focus:ring-blue-300" placeholder="Enter location" required />
+      </div>
 
-<div class="status" id="status">Status: Idle</div>
+      <button type="submit" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg font-medium">
+        Add Inventory
+      </button>
+    </form>
 
-<table>
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Barcode</th>
-      <th>Quantity</th>
-      <th>Unit</th>
-      <th>Timestamp</th>
-    </tr>
-  </thead>
-  <tbody id="tableBody"></tbody>
-</table>
+    <!-- Tabs -->
+    <div class="flex mt-4">
+      <button id="tabEntries" class="flex-1 bg-blue-500 text-white py-2 rounded-l-lg">Entries</button>
+      <button id="tabSummary" class="flex-1 bg-gray-200 py-2 rounded-r-lg">Summary</button>
+    </div>
 
-<!-- INPUT MODAL -->
-<div class="modal" id="inputModal">
-  <div class="modal-box">
-    <h3>Enter Details</h3>
+    <!-- Entries Tab -->
+    <div id="entriesTab" class="space-y-3 mt-3">
+      <h2 class="text-lg font-semibold text-gray-700">Scanned Items</h2>
+      <ul id="inventoryList" class="space-y-2"></ul>
+    </div>
 
-    <p><strong>Barcode:</strong> <span id="barcodeText"></span></p>
-
-    <label>Quantity *</label>
-    <input id="quantityInput" class="quantity-field" type="number" min="1" placeholder="Enter quantity" inputmode="numeric" pattern="[0-9]*" />
-
-    <label>Unit *</label>
-    <select id="unitInput">
-      <option value="">Select unit</option>
-      <option value="Inch">Inch</option>
-      <option value="Sheets">Sheets</option>
-    </select>
-
-    <button class="start" onclick="saveEntry()">Save</button>
+    <!-- Summary Tab -->
+    <div id="summaryTab" class="hidden space-y-3 mt-3">
+      <h2 class="text-lg font-semibold text-gray-700">Summary by Location</h2>
+      <div id="summaryContainer" class="space-y-4"></div>
+    </div>
   </div>
-</div>
 
-<script>
-  const video = document.getElementById("video");
-  const statusEl = document.getElementById("status");
-  const tableBody = document.getElementById("tableBody");
-  const modal = document.getElementById("inputModal");
-  const barcodeText = document.getElementById("barcodeText");
-  const quantityInput = document.getElementById("quantityInput");
-  const unitInput = document.getElementById("unitInput");
+  <script>
+    const inventoryForm = document.getElementById('inventoryForm');
+    const inventoryList = document.getElementById('inventoryList');
+    const exportCsvBtn = document.getElementById('exportCsv');
+    const summaryContainer = document.getElementById('summaryContainer');
 
-  const codeReader = new ZXing.BrowserMultiFormatReader();
-  let scanData = [];
-  let scanning = false;
-  let currentBarcode = "";
+    let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
 
-  function startScan() {
-    if (scanning) return;
-    scanning = true;
-    statusEl.textContent = "Status: Scanning...";
-  
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.CODE_128
-    ]);
-  
-    const constraints = {
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      }
-    };
-  
-    const reader = new ZXing.BrowserMultiFormatReader(hints);
-  
-    reader.decodeFromConstraints(constraints, video, (result, err) => {
-      if (result) {
-        stopScan();
-        currentBarcode = result.text;
-        showModal(currentBarcode);
-      }
-    });
-  
-    codeReader = reader;
-  }
-
-  function stopScan() {
-    scanning = false;
-    codeReader.reset();
-    statusEl.textContent = "Status: Stopped";
-  }
-
-  function showModal(code) {
-    barcodeText.textContent = code;
-    quantityInput.value = "";
-    unitInput.value = "";
-    modal.style.display = "flex";
-    // Focus numeric input to auto open keypad
-    quantityInput.focus();
-  }
-
-  function saveEntry() {
-    const quantity = quantityInput.value.trim();
-    const unit = unitInput.value;
-
-    if (!quantity || !unit) {
-      alert("Both Quantity and Unit are required");
-      return;
+    function saveLocal() {
+      localStorage.setItem('inventory', JSON.stringify(inventory));
     }
 
-    const row = {
-      Index: scanData.length + 1,
-      Barcode: currentBarcode,
-      Quantity: quantity,
-      Unit: unit,
-      Timestamp: new Date().toLocaleString()
+    inventoryForm.onsubmit = e => {
+      e.preventDefault();
+      const itemCode = document.getElementById('itemCode').value.trim();
+      const quantity = parseInt(document.getElementById('quantity').value);
+      const location = document.getElementById('location').value.trim();
+
+      if (!itemCode || !quantity || !location) return alert("Complete all fields!");
+
+      inventory.push({ itemCode, quantity, location });
+      saveLocal();
+      renderInventory();
+      renderSummary();
+      inventoryForm.reset();
+      document.getElementById('itemCode').focus();
     };
 
-    scanData.push(row);
-    appendRow(row);
-
-    modal.style.display = "none";
-    startScan(); // resume scanning automatically
-  }
-
-  function appendRow(row) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${row.Index}</td>
-      <td>${row.Barcode}</td>
-      <td>${row.Quantity}</td>
-      <td>${row.Unit}</td>
-      <td>${row.Timestamp}</td>
-    `;
-    tableBody.appendChild(tr);
-  }
-
-  function exportExcel() {
-    if (scanData.length === 0) {
-      alert("No data to export");
-      return;
+    function renderInventory() {
+      inventoryList.innerHTML = inventory.map((inv, i) => `
+        <li class="p-3 bg-gray-50 rounded-lg flex justify-between items-center border">
+          <div>
+            <p class="font-medium">${inv.itemCode} - Qty: ${inv.quantity}</p>
+            <p class="text-sm text-gray-600">Location: ${inv.location}</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="editInventory(${i})" class="text-blue-500 text-sm">✏️</button>
+            <button onclick="deleteInventory(${i})" class="text-red-500 text-sm">❌</button>
+          </div>
+        </li>
+      `).join('');
     }
 
-    const ws = XLSX.utils.json_to_sheet(scanData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Scans");
+    function renderSummary() {
+      const grouped = {};
+      inventory.forEach(inv => {
+        if (!grouped[inv.location]) grouped[inv.location] = [];
+        grouped[inv.location].push(inv);
+      });
 
-    const fileName = `scans_${new Date().toISOString().split("T")[0]}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-  }
-</script>
+      summaryContainer.innerHTML = Object.entries(grouped).map(([loc, items]) => {
+        return `
+          <div class="bg-gray-50 p-3 rounded-lg border">
+            <h3 class="font-semibold text-blue-600 mb-2">${loc}</h3>
+            <ul>
+              ${items.map(item => `<li class="flex justify-between text-gray-700"><span>${item.itemCode}</span><span>${item.quantity}</span></li>`).join('')}
+            </ul>
+          </div>
+        `;
+      }).join('');
+    }
 
+    function deleteInventory(index) {
+      inventory.splice(index, 1);
+      saveLocal();
+      renderInventory();
+      renderSummary();
+    }
+
+    function editInventory(index) {
+      const inv = inventory[index];
+      document.getElementById('itemCode').value = inv.itemCode;
+      document.getElementById('quantity').value = inv.quantity;
+      document.getElementById('location').value = inv.location;
+      deleteInventory(index);
+    }
+
+    // Tabs
+    const tabEntries = document.getElementById('tabEntries');
+    const tabSummary = document.getElementById('tabSummary');
+    tabEntries.onclick = () => {
+      tabEntries.classList.replace('bg-gray-200', 'bg-blue-500');
+      tabEntries.classList.add('text-white');
+      tabSummary.classList.replace('bg-blue-500', 'bg-gray-200');
+      tabSummary.classList.remove('text-white');
+      document.getElementById('entriesTab').classList.remove('hidden');
+      document.getElementById('summaryTab').classList.add('hidden');
+    };
+    tabSummary.onclick = () => {
+      tabSummary.classList.replace('bg-gray-200', 'bg-blue-500');
+      tabSummary.classList.add('text-white');
+      tabEntries.classList.replace('bg-blue-500', 'bg-gray-200');
+      tabEntries.classList.remove('text-white');
+      document.getElementById('summaryTab').classList.remove('hidden');
+      document.getElementById('entriesTab').classList.add('hidden');
+      renderSummary();
+    };
+
+    // CSV Export
+    exportCsvBtn.onclick = () => {
+        if (inventory.length === 0) return alert("No inventory to export!");
+
+        const data = [["Item Code", "Quantity", "Location"], ...inventory.map(i => [i.itemCode, i.quantity, i.location])];
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+        XLSX.writeFile(wb, "inventory.xlsx");
+    };
+
+    renderInventory();
+    renderSummary();
+  </script>
 </body>
 </html>
